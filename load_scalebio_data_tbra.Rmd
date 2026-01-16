@@ -89,6 +89,7 @@ rm(pool4)
 rm(counts_2)
 rm(counts_4)
 
+gc()
 ```
 
 ### Select cells of interest
@@ -175,6 +176,6 @@ pool_filtered_2 <- RunPCA(pool_filtered_2, layer = "SCT")
 ```{r}
 setwd("//csce.datastore.ed.ac.uk/csce/biology/groups/chambers/NGS_data_analysis/Sara/scale_bio_Sara/seurat_objects")
 
-saveRDS(pool_filtered_2, file = "tg2aplus_tbra_fk12_140126.rds")
+saveRDS(pool_filtered_2, file = "tg2aplus_tbra_fk12_160126.rds")
 
 ```

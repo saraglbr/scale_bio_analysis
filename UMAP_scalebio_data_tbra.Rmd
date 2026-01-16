@@ -1,0 +1,120 @@
+---
+title: "UMAP_scalebio_data"
+author: "Sara"
+date: "2026-01-14"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(Seurat)
+library(ggplot2)
+```
+
+### Load normalized data
+```{r}
+setwd("//csce.datastore.ed.ac.uk/csce/biology/groups/chambers/NGS_data_analysis/Sara/scale_bio_Sara/seurat_objects")
+
+pool <- readRDS(file = "tg2aplus_tbra_fk12_160126.rds")
+
+```
+
+
+### Visualize and select dimensions to use
+```{r}
+DefaultAssay(pool) <- "SCT"
+#Print the names of the top 5 genes contributing to each dimension
+print(pool[["pca"]], dims = 1:5, nfeatures = 5)
+
+#Generate a heatmap of top genes contributing to the first dimensions
+DimHeatmap(pool, dims = 1:6, cells = 500, balanced = TRUE)
+DimHeatmap(pool, dims = 7:12, cells = 500, balanced = TRUE)
+DimHeatmap(pool, dims = 13:18, cells = 500, balanced = TRUE)
+DimHeatmap(pool, dims = 19:24, cells = 500, balanced = TRUE)
+
+#Visualize the significance of each dimension (PC)
+ElbowPlot(pool)
+
+```
+
+### Run UMAP and clusters 
+```{r}
+pool <- FindNeighbors(pool, dims = 1:15)
+pool <- RunUMAP(pool, dims = 1:15)
+pool <- FindClusters(pool, resolution = 0.1)
+```
+
+### Visualize UMAP 
+```{r fig.width=10}
+#Visualize UMAP
+DimPlot(pool, reduction = "umap", group.by = "assigned_scaleplex", label = TRUE) #By sample
+DimPlot(pool, reduction = "umap", label = TRUE) #By cluster 
+table(pool$seurat_clusters, pool$assigned_scaleplex) #Number of cells in each sample by cluster
+
+#Visualize expression of key markers 
+FeaturePlot(pool, reduction="umap", features= c("T", "Zeb2", "Lef1", "Mixl1"), ncol=2, order = TRUE)
+FeaturePlot(pool, reduction="umap", features= c("Tfap2c", "Prdm1", "Sox2", "Prdm14"), ncol=2, order= TRUE)
+DotPlot(pool, features = c("Tfap2c", "Prdm1", "Nanog", "Prdm14", "Esrrb", "Kit", "Nr5a2", "Sox2", "Fgf8", "Krt18", "T", "Zeb2", "Fli1"))
+
+#Visualize quality metrics in UMAP 
+FeaturePlot(pool, reduction="umap", features= c("nFeature_RNA", "nCount_RNA", "percent.mt"))
+```
+### Markers for each cluster 
+```{r}
+zero <- FindMarkers(pool, ident.1 = "0" )
+one <- FindMarkers(pool, ident.1 = "1" )
+two <- FindMarkers(pool, ident.1 = "2" )
+three <- FindMarkers(pool, ident.1 = "3" )
+```
+
+```{r}
+
+FeaturePlot(pool, reduction="umap", 
+            features= rownames(zero[order(-zero$avg_log2FC), ])[1:4],order=TRUE) 
+FeaturePlot(pool, reduction="umap", 
+            features= rownames(one[order(-one$avg_log2FC), ])[1:4],  order=TRUE)
+FeaturePlot(pool, reduction="umap", 
+            features= rownames(two[order(-two$avg_log2FC), ])[1:4],  order=TRUE)
+FeaturePlot(pool, reduction="umap", 
+            features= rownames(three[order(-three$avg_log2FC), ])[1:4],  order=TRUE)
+
+```
+```{r}
+#Rename clusters 
+new_names <- c("0" = "T/brako",
+               "1"= "F12WT", 
+               "2" = "Tg2a",
+               "3" = "PGCLCs")
+
+pool <- RenameIdents(pool, new_names)
+pool$clusters_160126 <- Idents(pool)
+
+#Check that is true
+
+DimPlot(pool, reduction = "umap", group.by = "clusters_160126", split.by = "assigned_scaleplex", label = TRUE) 
+DimPlot(pool, reduction = "umap", group.by = "clusters_160126", label = TRUE) 
+#Big clusters split based on cell type, but PGCLCs cluster is in all samples 
+
+```
+
+
+```{r}
+setwd("//csce.datastore.ed.ac.uk/csce/biology/groups/chambers/NGS_data_analysis/Sara/scale_bio_Sara/seurat_objects")
+saveRDS(pool_filtered_2, file = "tg2aplus_tbra_fk12_160126.rds")
+```
+
+```{r}
+setwd("//csce.datastore.ed.ac.uk/csce/biology/groups/chambers/NGS_data_analysis/Sara/scale_bio_Sara/markers/160126")
+
+write.csv(zero, "Tbrako_markers.csv")
+write.csv(one, "F12WT_markers.csv")
+write.csv(two, "Tg2a_markers.csv")
+write.csv(three, "PGCLC_markers.csv")
+
+pdf("first_clusters_160126")
+DimPlot(pool, reduction = "umap", group.by = "clusters_160126", label = TRUE) 
+DimPlot(pool, reduction = "umap", group.by = "assigned_scaleplex", label = TRUE) 
+DimPlot(pool, reduction = "umap", group.by = "clusters_160126", split.by = "assigned_scaleplex", label = TRUE) 
+dev.off()
+
+```
+
