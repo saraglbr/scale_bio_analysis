@@ -1,0 +1,144 @@
+---
+title: "load_scalebio_data"
+author: "Sara"
+date: "2026-01-14"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(Seurat)
+library(SingleR)
+library(ggplot2)
+```
+
+
+### Load wild type timecourse reference dataset
+```{r}
+setwd("//csce.datastore.ed.ac.uk/csce/biology/groups/chambers/NGS_data_analysis/Sara/otx2_timecourse/seurat_objects/")
+tg2a_time <- readRDS("tg2a_timeocurse_SCTnorm_15-1-24.rds")
+
+DimPlot(tg2a_time, reduction = "umap", label = TRUE, group.by="clusterID")
+
+```
+
+#Load scalebio dataset
+```{r}
+setwd("//csce.datastore.ed.ac.uk/csce/biology/groups/chambers/NGS_data_analysis/Sara/scale_bio_Sara/seurat_objects")
+pool <- readRDS(file = "tg2aplus_tbra_fk12_160126.rds")
+DimPlot(pool, reduction = "umap", label = TRUE)
+```
+
+
+#Map identities using SingleR
+```{r}
+#Convert both objects to single cell experiments 
+tg2a_time_sc <- as.SingleCellExperiment(tg2a_time)
+pool_sc <- as.SingleCellExperiment(pool)
+
+#Predict identities
+preddictionsSR <- SingleR(test=pool_sc, ref=tg2a_time_sc,
+                          labels=tg2a_time@meta.data$clusterID, de.method="wilcox")
+
+#Number of cells mapped to each clusterID
+table(preddictionsSR$labels)
+```
+
+
+```{r}
+#Add singleR labels as a column on metadata
+pool <- AddMetaData(pool, metadata = preddictionsSR$labels, col.name = "predicted.id")
+
+table(pool$predicted.id, pool$assigned_scaleplex)
+
+#Visualize predicted IDs on UMAP
+DimPlot(pool, reduction="umap", group.by="predicted.id")
+
+```
+
+
+```{r}
+#Change names of ScalePlex well to actual sample names
+mapping <- c(
+    "4A" = "tg2a+", 
+    "4H" = "F12WT_rep1", 
+    "5A" = "F12WT_rep2", 
+    "5B" = "TBRAKO_rep1", 
+    "5C" = "TBRAKO_rep2"
+)
+
+
+pool@meta.data$sample_names <- mapping[pool$assigned_scaleplex]
+table(pool$assigned_scaleplex, pool$sample_names)
+
+```
+
+
+
+### #Project ScalePlex cells onto reference WT timecourse UMAP 
+```{r}
+pool <- FindNeighbors(pool, dims = 1:8)
+tg2a_time <- RunUMAP(tg2a_time, dims = 1:8, reduction = "pca", return.model = TRUE)
+
+ElbowPlot(tg2a_time)
+DimHeatmap(tg2a_time, dims = 5:10, cells = 500, balanced = TRUE)
+DimHeatmap(tg2a_time, dims = 10:15, cells = 500, balanced = TRUE)
+
+DimPlot(tg2a_time, reduction = "umap", label = TRUE, group.by="clusterID")
+
+
+ref.anchors <- FindTransferAnchors(reference = tg2a_time, query = pool, dims = 1:8,
+    reference.reduction = "pca")
+
+
+
+pool <- MapQuery(anchorset = ref.anchors,
+                           reference = tg2a_time, query = pool,
+                           refdata = list(celltype = "clusterID"), reference.reduction = "pca",
+                           reduction.model = "umap")
+```
+```{r}
+p1 <- DimPlot(tg2a_time, reduction = "umap", group.by = "clusterID", label = TRUE, label.size = 3,
+    repel = TRUE) + NoLegend() + ggtitle("WT timecourse")
+
+p2 <- DimPlot(pool, reduction = "ref.umap", group.by = "clusters_160126", label = TRUE,
+    label.size = 3, repel = TRUE) + NoLegend() + ggtitle("Scalebio data")
+
+p1 + p2
+```
+```{r}
+# 1. Get Reference coordinates (Background)
+ref_df <- as.data.frame(Embeddings(tg2a_time, reduction = "umap"))
+colnames(ref_df) <- c("UMAP_1", "UMAP_2")
+
+# 2. Get Query coordinates (Foreground)
+# Note: Use "ref.umap" here because that's what MapQuery creates
+query_df <- as.data.frame(Embeddings(pool, reduction = "ref.umap"))
+colnames(query_df) <- c("UMAP_1", "UMAP_2")
+
+# 3. Add the cell type metadata to the query data frame so we can color it
+query_df$predicted_type <- pool$clusters_160126
+
+ggplot() +
+  # Layer 1: The Reference (Grey background)
+  geom_point(data = ref_df, 
+             aes(x = UMAP_1, y = UMAP_2), 
+             color = "lightgrey", 
+             size = 0.1,    # Small points for background
+             alpha = 0.5) + # Slightly transparent
+  
+  # Layer 2: The Query (Colored foreground)
+  geom_point(data = query_df, 
+             aes(x = UMAP_1, y = UMAP_2, color = predicted_type), 
+             size = 0.8) +  # Slightly larger points for query
+  
+  # Styling
+  theme_bw() +
+  ggtitle("Scalebio Query Projected on WT Reference") +
+  guides(color = guide_legend(override.aes = list(size = 3))) + # Make legend dots bigger
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank())
+```
+```{r}
+setwd("//csce.datastore.ed.ac.uk/csce/biology/groups/chambers/NGS_data_analysis/Sara/scale_bio_Sara/seurat_objects")
+saveRDS(pool, file = "tg2aplus_tbra_fk12_MAPPED_160126.rds")
+```
