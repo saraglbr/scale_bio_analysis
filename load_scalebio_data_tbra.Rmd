@@ -86,6 +86,9 @@ saveRDS(pool4, file = "pool4_unfiltered.rds")
 
 rm(pool2)
 rm(pool4)
+rm(counts_2)
+rm(counts_4)
+
 ```
 
 ### Select cells of interest
@@ -136,7 +139,9 @@ pool_filtered_2 <- subset(
    nCount_RNA > 1500 &
    nFeature_RNA < 7000 &
    nFeature_RNA > 500 &
-   percent.mt < 1.5
+   percent.mt < 1.5 &
+   percent.mt > 0.2
+
 )
 ```
 
@@ -149,8 +154,11 @@ plot2 <- FeatureScatter(pool_filtered_2, feature1 = "nCount_RNA", feature2 = "nF
 plot1
 plot2
 
-pool_filtered
-pool_filtered_2
+#Check number of cells in each object
+pool_filtered #14366 cells
+pool_filtered_2 #13491 cells
+#875 cells removed 
+
 
 ```
 
@@ -159,7 +167,7 @@ pool_filtered_2
 #This command does 3 things: normalize and scale the data, and find top variable features 
 pool_filtered_2 <- SCTransform(pool_filtered_2)
 #PCA
-pool_filtered_2 <- RunPCA(pool_filtered_2, assay = "SCT")
+pool_filtered_2 <- RunPCA(pool_filtered_2, layer = "SCT")
 ```
 
 ## Save object 
