@@ -138,7 +138,20 @@ ggplot() +
   theme(panel.grid.major = element_blank(), 
         panel.grid.minor = element_blank())
 ```
+
+```{r}
+coords <- Embeddings(pool, reduction = "ref.umap")
+pool$mapped_umap_1 <- coords[, 1]
+pool$mapped_umap_2 <- coords[, 2]
+
+
+names(pool@neighbors
+pool@neighbors$query_ref.nn <- NULL
+pool@neighbors$query_ref.snn <- NULL
+```
+
 ```{r}
 setwd("//csce.datastore.ed.ac.uk/csce/biology/groups/chambers/NGS_data_analysis/Sara/scale_bio_Sara/seurat_objects")
+pool@commands <- list() 
 saveRDS(pool, file = "tg2aplus_tbra_fk12_MAPPED_160126.rds")
 ```
