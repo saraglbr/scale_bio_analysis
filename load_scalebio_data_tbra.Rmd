@@ -1,0 +1,184 @@
+---
+title: "load_scalebio_data"
+author: "Sara"
+date: "2026-01-14"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(Seurat)
+```
+
+```{r}
+counts_2 <- Read10X("//csce.datastore.ed.ac.uk/csce/biology/groups/chambers/NGS_data_analysis/Sara/scale_bio_Sara/output_merged/samples/Pool2.QSR-P.filtered.matrix")
+
+counts_4 <- Read10X("//csce.datastore.ed.ac.uk/csce/biology/groups/chambers/NGS_data_analysis/Sara/scale_bio_Sara/output_merged/samples/Pool4.QSR-P.filtered.matrix")
+
+metadata_2 <- read.csv(
+  file = "//csce.datastore.ed.ac.uk/csce/biology/groups/chambers/NGS_data_analysis/Sara/scale_bio_Sara/output_merged/samples/Pool2.QSR-P.allCells.csv",
+  header = TRUE,
+  row.names = 1
+)
+
+metadata_4 <- read.csv(
+  file = "//csce.datastore.ed.ac.uk/csce/biology/groups/chambers/NGS_data_analysis/Sara/scale_bio_Sara/output_merged/samples/Pool4.QSR-P.allCells.csv",
+  header = TRUE,
+  row.names = 1
+)
+
+
+pool2 <- CreateSeuratObject(
+  counts = counts_2,
+  assay = "RNA",
+  meta.data = metadata_2
+)
+pool2
+
+
+pool4 <- CreateSeuratObject(
+  counts = counts_4,
+  assay = "RNA",
+  meta.data = metadata_4
+)
+pool4
+
+```
+
+```{r}
+
+pool <- merge(pool2, y = pool4, add.cell.ids = c("pool2", "pool4"), project = "scalebio")
+
+pool2
+pool4
+pool
+
+pool <- JoinLayers(pool)
+
+pool
+
+setwd("//csce.datastore.ed.ac.uk/csce/biology/groups/chambers/NGS_data_analysis/Sara/scale_bio_Sara/seurat_objects")
+
+saveRDS(pool2, file = "pool2_unfiltered.rds")
+saveRDS(pool4, file = "pool4_unfiltered.rds")
+
+```
+
+
+```{r}
+#subset dataset to only keep samples of interest: tg2a+ (4A), F12WT (4H, 5A), TbraKO (5B, 5C)
+Idents(pool) <- "assigned_scaleplex"
+table(pool$assigned_scaleplex)
+pool_filtered <- subset(pool, subset = assigned_scaleplex %in% c("4A", "4H", "5A", "5B", "5C"))
+table(pool_filtered$assigned_scaleplex)
+
+```
+
+
+
+```{r}
+
+pool_filtered[["percent.mt"]] <- PercentageFeatureSet(pool_filtered, pattern = "^mt-", assay = "RNA") # calulcate percentage of mitochondial reads, all mitochondial genes start with "mt-"
+
+
+VlnPlot(pool_filtered, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3, pt.size = 0)
+
+plot1 <- FeatureScatter(pool_filtered, feature1 = "nCount_RNA", feature2 = "percent.mt")
+plot2 <- FeatureScatter(pool_filtered, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
+plot1
+plot2
+
+```
+```{r}
+pool_filtered_2 <- subset(
+ x = pool_filtered,
+   subset = 
+   nCount_RNA < 25000 &
+   nCount_RNA > 1500 &
+   nFeature_RNA < 7000 &
+   nFeature_RNA > 500 &
+   percent.mt < 1.5
+)
+
+
+VlnPlot(pool_filtered_2, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3, pt.size = 0, split.by="assigned_scaleplex")
+
+plot1 <- FeatureScatter(pool_filtered_2, feature1 = "nCount_RNA", feature2 = "percent.mt", group.by ="assigned_scaleplex")
+plot2 <- FeatureScatter(pool_filtered_2, feature1 = "nCount_RNA", feature2 = "nFeature_RNA", group.by ="assigned_scaleplex")
+plot1
+plot2
+
+pool_filtered
+pool_filtered_2
+
+
+```
+
+```{r}
+#This command does 3 things: normalize and scale the data, and find top variable features 
+pool_filtered_2 <- SCTransform(pool_filtered_2)
+#PCA
+pool_filtered_2 <- RunPCA(pool_filtered_2, assay = "SCT")
+```
+
+```{r}
+
+pool1_filtered <- FindVariableFeatures(pool1_filtered, selection.method = "vst", nfeatures = 2000)
+top10 <- head(VariableFeatures(pool1_filtered), 10)
+
+plot1 <- VariableFeaturePlot(pool1_filtered)
+plot2 <- LabelPoints(plot = plot1, points = top10, repel = TRUE)
+plot1
+plot2
+
+```
+
+```{r}
+
+#Visualize dimensions 
+DefaultAssay(pool_filtered_2) <- "SCT"
+#Print the names of the top 5 genes contributing to each dimension
+print(pool_filtered_2[["pca"]], dims = 1:5, nfeatures = 5)
+
+#Generate a heatmap of top genes contributing to the first 6 dimensions
+DimHeatmap(pool_filtered_2, dims = 1:6, cells = 500, balanced = TRUE)
+
+#Visualize the significance of each dimension (PC)
+VizDimLoadings(pool_filtered_2, dims = 1:2, reduction = "pca")
+ElbowPlot(pool_filtered_2)
+```
+```{r}
+pool_filtered_2 <- FindNeighbors(pool_filtered_2, dims = 3:10)
+pool_filtered_2 <- RunUMAP(pool_filtered_2, dims = 3:10)
+pool_filtered_2 <- FindClusters(pool_filtered_2, resolution = 0.1)
+```
+
+```{r}
+DimPlot(pool_filtered_2, reduction = "umap", group.by = "assigned_scaleplex", label = TRUE)
+DimPlot(pool_filtered_2, reduction = "umap", label = TRUE)
+table(pool_filtered_2$seurat_clusters, pool_filtered_2$assigned_scaleplex)
+FeaturePlot(pool_filtered_2, reduction="umap", features= c("Zeb2"))
+FeaturePlot(pool_filtered_2, reduction="umap", features= c("Tfap2c", "Prdm1", "Nanog", "Prdm14"), order= TRUE)
+DotPlot(pool_filtered_2, features = c("Tfap2c", "Prdm1", "Nanog", "Prdm14", "Esrrb", "Kit", "Nr5a2", "Fgf8", "Krt18", "T", "Zeb2", "Fli1"))
+
+
+
+FeaturePlot(pool_filtered_2, reduction="umap", features= c("nFeature_RNA", "nCount_RNA", "percent.mt"))
+
+
+```
+```{r}
+zero <- FindMarkers(pool_filtered_2, ident.1 = "0" )
+uno <- FindMarkers(pool_filtered_2, ident.1 = "1" )
+dos <- FindMarkers(pool_filtered_2, ident.1 = "2" )
+tres <- FindMarkers(pool_filtered_2, ident.1 = "3" )
+cuatro <- FindMarkers(pool_filtered_2, ident.1 = "4" )
+
+```
+
+
+```{r}
+setwd("//csce.datastore.ed.ac.uk/csce/biology/groups/chambers/NGS_data_analysis/Sara/scale_bio_Sara/seurat_objects")
+
+saveRDS(pool_filtered_2, file = "tg2aplus_tbra_fk12_140126.rds")
+
+```
