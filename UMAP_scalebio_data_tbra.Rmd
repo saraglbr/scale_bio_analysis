@@ -99,7 +99,7 @@ DimPlot(pool, reduction = "umap", group.by = "clusters_160126", label = TRUE)
 
 ```{r}
 setwd("//csce.datastore.ed.ac.uk/csce/biology/groups/chambers/NGS_data_analysis/Sara/scale_bio_Sara/seurat_objects")
-saveRDS(pool_filtered_2, file = "tg2aplus_tbra_fk12_160126.rds")
+saveRDS(pool, file = "tg2aplus_tbra_fk12_160126.rds")
 ```
 
 ```{r}
